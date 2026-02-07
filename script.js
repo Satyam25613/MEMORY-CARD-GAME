@@ -558,8 +558,15 @@ async function checkForMatch() {
                 }
                 updateDisplay();
             } else if (gameState.mode === 'online') {
-                const playerKey = `players/player${gameState.currentPlayer}/score`;
-                const newScore = gameState.currentPlayer === 1 ? gameState.player1Score + 1 : gameState.player2Score + 1;
+                // Update local score first
+                if (gameState.currentPlayer === 1) {
+                    gameState.player1Score++;
+                } else {
+                    gameState.player2Score++;
+                }
+
+                const playerKey = `players/player${gameState.playerNumber}/score`;
+                const newScore = gameState.playerNumber === 1 ? gameState.player1Score : gameState.player2Score;
 
                 // Get current matched cards from Firebase
                 const gameRef = window.dbRef(window.db, `games/${gameState.gameId}`);
@@ -591,6 +598,8 @@ async function checkForMatch() {
                 switchTurn();
             } else if (gameState.mode === 'online') {
                 const newTurn = gameState.currentPlayer === 1 ? 2 : 1;
+                // Update local state before Firebase
+                gameState.currentPlayer = newTurn;
                 await updateFirebaseGame({
                     currentPlayer: newTurn,
                     flippedCards: []
