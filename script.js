@@ -297,7 +297,12 @@ function syncGameState(gameData) {
     // Update scores
     gameState.player1Score = gameData.players.player1.score;
     gameState.player2Score = gameData.players.player2.score;
-    gameState.currentPlayer = gameData.currentPlayer;
+
+    // Only update turn if we're not currently in the middle of a turn
+    // This prevents Firebase from overwriting local state during active play
+    if (gameState.canFlip) {
+        gameState.currentPlayer = gameData.currentPlayer;
+    }
 
     // Check opponent connection status
     if (gameState.mode === 'online') {
@@ -330,11 +335,15 @@ function syncGameState(gameData) {
     updateDisplay();
     updateTurnIndicator();
 
-    // Sync flipped cards
+    // Sync card states
     const flippedIndices = gameData.flippedCards || [];
     const matchedIndices = gameData.matchedCards || [];
 
-    // Update card states
+    // Only sync cards if it's NOT our turn or we haven't flipped any cards yet
+    // This prevents removing the "flipped" class from cards we just clicked
+    const isOurTurn = gameState.currentPlayer === gameState.playerNumber;
+    const hasLocalFlips = gameState.flippedCards.length > 0;
+
     document.querySelectorAll('.card').forEach((card, index) => {
         const isFlipped = flippedIndices.includes(index);
         const isMatched = matchedIndices.includes(index);
@@ -344,7 +353,9 @@ function syncGameState(gameData) {
             card.classList.add('flipped');
         } else if (isFlipped) {
             card.classList.add('flipped');
-        } else {
+        } else if (!isOurTurn || !hasLocalFlips) {
+            // Only remove flipped class if it's not our turn or we have no local flips
+            // This prevents race condition where Firebase removes our just-clicked card
             card.classList.remove('flipped');
         }
 
