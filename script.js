@@ -114,6 +114,7 @@ async function createOnlineGame() {
 
         // Create game in Firebase with timeout
         const gameRef = window.dbRef(window.db, `games/${gameId}`);
+        const player1Ref = window.dbRef(window.db, `games/${gameId}/players/player1`);
 
         // Show loading state
         createGameBtn.textContent = 'Creating...';
@@ -130,8 +131,8 @@ async function createOnlineGame() {
             matchedCards: [],
             currentPlayer: 1,
             players: {
-                player1: { score: 0, connected: true },
-                player2: { score: 0, connected: false }
+                player1: { score: 0, connected: true, lastSeen: Date.now() },
+                player2: { score: 0, connected: false, lastSeen: null }
             },
             status: 'waiting',
             difficulty: gameState.difficulty,
@@ -140,9 +141,18 @@ async function createOnlineGame() {
 
         await Promise.race([setPromise, timeoutPromise]);
 
+        // Setup presence detection for player 1
+        setupPresenceDetection(gameId, 1);
+
         // Show game ID
         gameIdText.textContent = gameId;
         gameIdDisplay.style.display = 'block';
+
+        // Update button state to show waiting
+        createGameBtn.textContent = 'Waiting for Player 2...';
+        createGameBtn.disabled = true;
+        createGameBtn.style.opacity = '0.6';
+        createGameBtn.style.cursor = 'not-allowed';
 
         // Listen for player 2 joining
         listenToGame(gameId);
@@ -152,6 +162,8 @@ async function createOnlineGame() {
         // Reset button state
         createGameBtn.textContent = 'CREATE NEW GAME';
         createGameBtn.disabled = false;
+        createGameBtn.style.opacity = '1';
+        createGameBtn.style.cursor = 'pointer';
 
         if (error.message === 'Connection timeout') {
             alert('❌ Database Connection Failed\n\n⚠️ The Firebase Realtime Database has not been created yet.\n\nPlease:\n1. Go to Firebase Console\n2. Click "Realtime Database"\n3. Click "Create Database"\n4. Choose location and start in test mode\n5. Try again\n\nURL: https://console.firebase.google.com/project/memory-game-f25ab/database');
@@ -161,43 +173,95 @@ async function createOnlineGame() {
     }
 }
 
+// ===== Firebase Presence Detection =====
+function setupPresenceDetection(gameId, playerNumber) {
+    if (!window.db || !window.dbRef || !window.dbOnDisconnect || !window.dbUpdate) {
+        console.warn('Firebase presence features not available');
+        return;
+    }
+
+    const playerRef = window.dbRef(window.db, `games/${gameId}/players/player${playerNumber}`);
+    const connectedRef = window.dbRef(window.db, '.info/connected');
+
+    // Listen for connection state changes
+    window.dbOnValue(connectedRef, (snapshot) => {
+        if (snapshot.val() === true) {
+            // We're connected (or reconnected)
+            // Set up disconnect handler
+            const disconnectRef = window.dbOnDisconnect(playerRef);
+            disconnectRef.update({
+                connected: false,
+                lastSeen: Date.now()
+            });
+
+            // Set ourselves as online
+            window.dbUpdate(playerRef, {
+                connected: true,
+                lastSeen: Date.now()
+            });
+
+            // Update lastSeen every 5 seconds to show we're still active
+            if (gameState.presenceInterval) {
+                clearInterval(gameState.presenceInterval);
+            }
+            gameState.presenceInterval = setInterval(() => {
+                window.dbUpdate(playerRef, { lastSeen: Date.now() });
+            }, 5000);
+        }
+    });
+}
+
 // ===== Firebase: Join Online Game =====
 async function joinOnlineGame() {
-    const gameId = gameIdInput.value.trim().toUpperCase();
-    if (gameId.length !== 6) {
-        alert('Please enter a valid 6-character Game ID');
-        return;
+    try {
+        // Check if Firebase is available
+        if (!window.db || !window.dbRef || !window.dbGet || !window.dbUpdate) {
+            alert('⚠️ Firebase is not initialized.\n\nPlease use HTTPS hosting to access Firebase.');
+            return;
+        }
+
+        const gameId = gameIdInput.value.trim().toUpperCase();
+        if (!gameId) {
+            alert('⚠️ Please enter a Game ID');
+            return;
+        }
+
+        const gameRef = window.dbRef(window.db, `games/${gameId}`);
+        const snapshot = await window.dbGet(gameRef);
+
+        if (!snapshot.exists()) {
+            alert('⚠️ Game not found! Please check the Game ID.');
+            return;
+        }
+
+        const gameData = snapshot.val();
+        if (gameData.status !== 'waiting') {
+            alert('⚠️ This game is already in progress or finished.');
+            return;
+        }
+
+        // Join as player 2
+        gameState.gameId = gameId;
+        gameState.playerNumber = 2;
+
+        // Setup presence detection for player 2
+        setupPresenceDetection(gameId, 2);
+
+        await window.dbUpdate(gameRef, {
+            'players/player2/connected': true,
+            'players/player2/lastSeen': Date.now(),
+            'status': 'playing'
+        });
+
+        gameState.difficulty = gameData.difficulty;
+
+        // Start game
+        listenToGame(gameId);
+        startGame();
+    } catch (error) {
+        console.error('Failed to join game:', error);
+        alert('\u26a0\ufe0f Failed to join game: ' + error.message);
     }
-
-    gameState.gameId = gameId;
-    gameState.playerNumber = 2;
-
-    // Check if game exists
-    const gameRef = window.dbRef(window.db, `games/${gameId}`);
-    const snapshot = await window.dbGet(gameRef);
-
-    if (!snapshot.exists()) {
-        alert('Game not found! Please check the Game ID.');
-        return;
-    }
-
-    const gameData = snapshot.val();
-    if (gameData.players.player2.connected) {
-        alert('This game is already full!');
-        return;
-    }
-
-    // Join the game
-    await window.dbUpdate(gameRef, {
-        'players/player2/connected': true,
-        'status': 'playing'
-    });
-
-    gameState.difficulty = gameData.difficulty;
-
-    // Start game
-    listenToGame(gameId);
-    startGame();
 }
 
 // ===== Firebase: Listen to Game Updates =====
@@ -235,6 +299,33 @@ function syncGameState(gameData) {
     gameState.player2Score = gameData.players.player2.score;
     gameState.currentPlayer = gameData.currentPlayer;
 
+    // Check opponent connection status
+    if (gameState.mode === 'online') {
+        const opponentNumber = gameState.playerNumber === 1 ? 2 : 1;
+        const opponent = gameData.players[`player${opponentNumber}`];
+
+        // Update connection status
+        const statusIcon = document.getElementById('status-icon');
+        const statusText = document.getElementById('status-text');
+        const opponentStatus = document.getElementById('opponent-status');
+
+        if (opponent && opponent.connected) {
+            if (statusIcon) statusIcon.textContent = '🟢';
+            if (statusText) statusText.textContent = 'Connected';
+            if (opponentStatus) opponentStatus.textContent = '';
+        } else {
+            if (statusIcon) statusIcon.textContent = '🔴';
+            if (statusText) statusText.textContent = 'Opponent Disconnected';
+            if (opponentStatus) opponentStatus.textContent = '⚠️ Waiting for reconnection...';
+
+            // Show toast notification once
+            if (!gameState.disconnectToastShown) {
+                showToast('Opponent disconnected. Waiting for reconnection...', 'warning');
+                gameState.disconnectToastShown = true;
+            }
+        }
+    }
+
     // Update UI
     updateDisplay();
     updateTurnIndicator();
@@ -267,6 +358,27 @@ function syncGameState(gameData) {
 
     // Update matched pairs count
     gameState.matchedPairs = matchedIndices.length / 2;
+}
+
+// ===== Toast Notification System =====
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+
+    container.appendChild(toast);
+
+    // Trigger animation
+    setTimeout(() => toast.classList.add('show'), 10);
+
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 
 // ===== Firebase: Update Game State =====
@@ -377,6 +489,12 @@ function createCardElement(emoji, index) {
 async function handleCardClick(card, index) {
     // Prevent clicking if not current player in online mode
     if (gameState.mode === 'online' && gameState.currentPlayer !== gameState.playerNumber) {
+        // Visual feedback: shake animation
+        card.classList.add('shake');
+        setTimeout(() => card.classList.remove('shake'), 500);
+
+        // Show toast notification
+        showToast('\u26a0\ufe0f Wait for your turn!', 'warning');
         return;
     }
 
@@ -385,6 +503,11 @@ async function handleCardClick(card, index) {
         card.classList.contains('flipped') ||
         card.classList.contains('matched') ||
         gameState.flippedCards.length >= 2) {
+        // Gentle shake for invalid click
+        if (card.classList.contains('flipped') || card.classList.contains('matched')) {
+            card.classList.add('shake');
+            setTimeout(() => card.classList.remove('shake'), 500);
+        }
         return;
     }
 

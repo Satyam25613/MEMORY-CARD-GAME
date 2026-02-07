@@ -73,8 +73,13 @@
         <div id="game-screen" class="screen">
             <!-- Connection Status -->
             <div id="connection-status" class="connection-status" style="display: none;">
-                <span id="status-text">🟢 Connected</span>
+                <span id="status-icon">🟢</span>
+                <span id="status-text">Connected</span>
+                <span id="opponent-status" style="margin-left: 10px;"></span>
             </div>
+
+            <!-- Toast Notification Container -->
+            <div id="toast-container"></div>
 
             <!-- Game Stats -->
             <div class="game-stats">
