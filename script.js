@@ -112,9 +112,19 @@ async function createOnlineGame() {
         const selectedEmojis = cardEmojis.slice(0, totalPairs);
         const board = shuffleArray([...selectedEmojis, ...selectedEmojis]);
 
-        // Create game in Firebase
+        // Create game in Firebase with timeout
         const gameRef = window.dbRef(window.db, `games/${gameId}`);
-        await window.dbSet(gameRef, {
+
+        // Show loading state
+        createGameBtn.textContent = 'Creating...';
+        createGameBtn.disabled = true;
+
+        // Set timeout to detect hanging connection
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Connection timeout')), 5000)
+        );
+
+        const setPromise = window.dbSet(gameRef, {
             board: board,
             flippedCards: [],
             matchedCards: [],
@@ -128,16 +138,26 @@ async function createOnlineGame() {
             createdAt: Date.now()
         });
 
+        await Promise.race([setPromise, timeoutPromise]);
+
         // Show game ID
         gameIdText.textContent = gameId;
         gameIdDisplay.style.display = 'block';
-        createGameBtn.disabled = true;
 
         // Listen for player 2 joining
         listenToGame(gameId);
     } catch (error) {
         console.error('Firebase error:', error);
-        alert('⚠️ Failed to create game.\n\nError: ' + error.message + '\n\nPlease ensure:\n1. You have internet connection\n2. Game is hosted on HTTPS (not file://)\n3. Firebase is properly configured');
+
+        // Reset button state
+        createGameBtn.textContent = 'CREATE NEW GAME';
+        createGameBtn.disabled = false;
+
+        if (error.message === 'Connection timeout') {
+            alert('❌ Database Connection Failed\n\n⚠️ The Firebase Realtime Database has not been created yet.\n\nPlease:\n1. Go to Firebase Console\n2. Click "Realtime Database"\n3. Click "Create Database"\n4. Choose location and start in test mode\n5. Try again\n\nURL: https://console.firebase.google.com/project/memory-game-f25ab/database');
+        } else {
+            alert('⚠️ Failed to create game.\n\nError: ' + error.message + '\n\nPlease ensure:\n1. You have internet connection\n2. Firebase Realtime Database is created\n3. Database rules allow writes');
+        }
     }
 }
 
