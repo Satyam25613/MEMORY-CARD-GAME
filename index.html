@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Flip Memory Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>🎮 Memory Card Game</h1>
+        </header>
+
+        <!-- Game Setup Screen -->
+        <div id="setup-screen" class="screen active">
+            <h2>Choose Game Mode</h2>
+            <div class="mode-selection">
+                <button class="mode-btn" data-mode="single">
+                    <span class="icon">👤</span>
+                    <span>Single Player</span>
+                </button>
+                <button class="mode-btn" data-mode="local">
+                    <span class="icon">👥</span>
+                    <span>Local 2P</span>
+                </button>
+                <button class="mode-btn" data-mode="online">
+                    <span class="icon">🌐</span>
+                    <span>Online 2P</span>
+                </button>
+            </div>
+
+            <div class="difficulty-selection">
+                <h3>Select Difficulty</h3>
+                <div class="difficulty-buttons">
+                    <button class="difficulty-btn active" data-grid="4">
+                        <span>Easy</span>
+                        <small>4x4 Grid</small>
+                    </button>
+                    <button class="difficulty-btn" data-grid="6">
+                        <span>Hard</span>
+                        <small>6x6 Grid</small>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Online Mode Options -->
+            <div id="online-options" style="display: none;">
+                <div class="online-buttons">
+                    <button id="create-game-btn" class="secondary-btn">Create New Game</button>
+                    <div class="join-game-section">
+                        <input type="text" id="game-id-input" placeholder="Enter Game ID" maxlength="6">
+                        <button id="join-game-btn" class="secondary-btn">Join Game</button>
+                    </div>
+                </div>
+                <div id="game-id-display" style="display: none;">
+                    <p>Share this Game ID:</p>
+                    <div class="game-id-box">
+                        <span id="game-id-text"></span>
+                        <button id="copy-game-id-btn" class="copy-btn">📋 Copy</button>
+                    </div>
+                    <p class="waiting-text">Waiting for player 2 to join...</p>
+                </div>
+            </div>
+
+            <button id="start-game-btn" class="primary-btn">Start Game</button>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <!-- Connection Status -->
+            <div id="connection-status" class="connection-status" style="display: none;">
+                <span id="status-text">🟢 Connected</span>
+            </div>
+
+            <!-- Game Stats -->
+            <div class="game-stats">
+                <div class="stat-item" id="timer-container">
+                    <span class="stat-label">⏱️ Time</span>
+                    <span class="stat-value" id="timer">00:00</span>
+                </div>
+
+                <div class="stat-item" id="moves-container">
+                    <span class="stat-label">🎯 Moves</span>
+                    <span class="stat-value" id="moves">0</span>
+                </div>
+
+                <div class="stat-item" id="player1-container" style="display: none;">
+                    <span class="stat-label">Player 1</span>
+                    <span class="stat-value" id="player1-score">0</span>
+                </div>
+
+                <div class="stat-item" id="player2-container" style="display: none;">
+                    <span class="stat-label">Player 2</span>
+                    <span class="stat-value" id="player2-score">0</span>
+                </div>
+            </div>
+
+            <!-- Current Turn Indicator (Multiplayer) -->
+            <div id="turn-indicator" class="turn-indicator" style="display: none;">
+                <span id="current-turn-text">Player 1's Turn</span>
+            </div>
+
+            <!-- Card Grid -->
+            <div id="card-grid" class="card-grid"></div>
+
+            <!-- Game Controls -->
+            <div class="game-controls">
+                <button id="restart-btn" class="secondary-btn">🔄 Restart</button>
+                <button id="quit-btn" class="secondary-btn">🏠 Main Menu</button>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameover-screen" class="screen">
+            <h2>🎉 Game Complete!</h2>
+            <div id="final-stats" class="final-stats"></div>
+            <div class="game-controls">
+                <button id="play-again-btn" class="primary-btn">Play Again</button>
+                <button id="menu-btn" class="secondary-btn">Main Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, update, onValue, get, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBojT0CzNy5JIBwOZ-RJhufBLv5tIZikwA",
+            authDomain: "memory-game-f25ab.firebaseapp.com",
+            databaseURL: "https://memory-game-f25ab-default-rtdb.firebaseio.com",
+            projectId: "memory-game-f25ab",
+            storageBucket: "memory-game-f25ab.appspot.com",
+            messagingSenderId: "58349546482",
+            appId: "1:58349546482:web:bd2979a9d05b0aeaee996b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Expose globally
+        window.db = db;
+        window.dbRef = ref;
+        window.dbSet = set;
+        window.dbUpdate = update;
+        window.dbOnValue = onValue;
+        window.dbGet = get;
+        window.dbRemove = remove;
+    </script>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
