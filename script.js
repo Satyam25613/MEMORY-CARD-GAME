@@ -526,17 +526,18 @@ async function handleCardClick(card, index) {
     card.classList.add('flipped');
     gameState.flippedCards.push({ card, index });
 
-    // For online games, update Firebase
-    if (gameState.mode === 'online') {
-        const flippedIndices = gameState.flippedCards.map(f => f.index);
-        await updateFirebaseGame({
-            flippedCards: flippedIndices
-        });
-    }
-
     // Check for match when two cards are flipped
     if (gameState.flippedCards.length === 2) {
         gameState.canFlip = false;
+
+        // For online games, update Firebase ONCE with both cards
+        // This prevents race condition where rapid clicks only record one card
+        if (gameState.mode === 'online') {
+            const flippedIndices = gameState.flippedCards.map(f => f.index);
+            await updateFirebaseGame({
+                flippedCards: flippedIndices
+            });
+        }
 
         if (gameState.mode === 'single') {
             gameState.moves++;
