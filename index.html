@@ -133,14 +133,14 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, set, update, onValue, get, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getDatabase, ref, set, update, onValue, get, remove, onDisconnect, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyA55pEQJnWoWeNvBMoLsUhYXrX6g1iioKw",
             authDomain: "memory-card-game-e97ae.firebaseapp.com",
             databaseURL: "https://memory-card-game-e97ae-default-rtdb.firebaseio.com",
             projectId: "memory-card-game-e97ae",
-            storageBucket: "memory-card-game-e97ae.firebasestorage.app",
+            storageBucket: "memory-card-game-e97ae.firestorage.app",
             messagingSenderId: "787141058573",
             appId: "1:787141058573:web:0a53e83578d21fe512f544"
         };
@@ -156,6 +156,8 @@
         window.dbOnValue = onValue;
         window.dbGet = get;
         window.dbRemove = remove;
+        window.dbOnDisconnect = onDisconnect;
+        window.dbServerTimestamp = serverTimestamp;
     </script>
 
     <script src="script.js"></script>
